@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "icons": "node scripts/make-icons.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "build:firefox": "npm run build && node scripts/package.mjs",
+    "package": "npm run build && node scripts/package.mjs"
   },
   "dependencies": {
     "@ark-ui/react": "^5.39.3",

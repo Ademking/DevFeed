@@ -79,19 +79,21 @@ News comes from two places:
 
 DevFeed isn't in an extension store yet, so you load it unpacked.
 
-**From a release:** download `devfeed-v*.zip` from the [latest release](https://github.com/Ademking/DevFeed/releases/latest), unzip it, and load that folder as described below.
+**From a release:** download the zip for your browser from the [latest release](https://github.com/Ademking/DevFeed/releases/latest): `devfeed-chrome-v*.zip` for Chrome, Edge and Brave, or `devfeed-firefox-v*.zip` for Firefox. Unzip it and load it as described below.
 
 **From source:**
 
 ```bash
 npm install
-npm run build
+npm run package
 ```
 
-Then load the unzipped release folder, or `dist/` if you built it yourself:
+This builds `dist/` (Chrome, Edge, Brave) and `dist-firefox/` (Firefox), and zips both into `release/`.
+
+Then load the unzipped folder for your browser:
 
 - **Chrome, Edge or Brave:** open `chrome://extensions` (`brave://extensions` in Brave), turn on **Developer mode**, click **Load unpacked** and pick the folder.
-- **Firefox:** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick `manifest.json` in the folder. This hasn't been tested, and favicons fall back to letters there.
+- **Firefox 140 or later:** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick `manifest.json` in the Firefox folder (or the Firefox zip itself). A temporary add-on is removed when Firefox restarts; installing it permanently needs a build signed by Mozilla. Site icons fall back to letters in Firefox, which has no favicon API for extensions.
 
 Open a new tab. RSS feeds, favourites and the welcome screen work straight away. To load the daily.dev feeds, generate a token at [daily.dev → Settings → API](https://daily.dev/settings/api/) and paste it into the card in the For you feed.
 
@@ -132,11 +134,14 @@ Settings shows the remaining quota from the last API response.
 ```bash
 npm run dev          # Vite dev server at http://localhost:5173
 npm run build        # Type-check and build the extension into dist/
+npm run package      # Build, add dist-firefox/, and zip both into release/
 npm run icons        # Regenerate the PNG icons in public/icons
 npm run screenshots  # Recapture docs/screenshots (needs npm run dev running)
 ```
 
 The dev page runs on `localhost`, which neither the daily.dev API nor most feeds allow cross-site, so the dev server proxies `/daily-api/*` to the API and `/rss-proxy?url=` to feeds. The built extension calls them directly through its host permissions.
+
+The Firefox build is the same code with a different manifest: it drops the Chrome-only `favicon` permission and adds `browser_specific_settings.gecko` with the add-on ID, a minimum version of Firefox 140 and the `data_collection_permissions` that addons.mozilla.org requires (the daily.dev token and the weather location). See `scripts/package.mjs`.
 
 `npm run screenshots` drives an installed Chrome in headless mode with a temporary profile. Set `CHROME_PATH` if Chrome isn't in the default location.
 

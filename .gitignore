@@ -28,3 +28,7 @@ dist-ssr
 
 # Release archives
 *.zip
+
+# Packaged builds
+dist-firefox/
+release/
