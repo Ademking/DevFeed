@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "DevFeed",
+  "short_name": "DevFeed",
+  "version": "1.0.0",
+  "description": "A minimal new tab for developer news: daily.dev, RSS feeds, a reader, favourites and weather.",
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "permissions": [
+    "favicon",
+    "search",
+    "geolocation"
+  ],
+  "host_permissions": [
+    "https://api.daily.dev/*",
+    "https://news.ycombinator.com/*",
+    "https://web.dev/*",
+    "https://github.blog/*",
+    "https://blog.cloudflare.com/*",
+    "https://dev.to/*",
+    "https://simonwillison.net/*",
+    "https://jvns.ca/*",
+    "https://martinfowler.com/*",
+    "https://overreacted.io/*",
+    "https://www.joshwcomeau.com/*",
+    "https://www.smashingmagazine.com/*",
+    "https://hacks.mozilla.org/*",
+    "https://developer.chrome.com/*",
+    "https://react.dev/*",
+    "https://devblogs.microsoft.com/*",
+    "https://blog.rust-lang.org/*",
+    "https://go.dev/*",
+    "https://stackoverflow.blog/*",
+    "https://netflixtechblog.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
