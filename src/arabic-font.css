@@ -1,0 +1,48 @@
+/*
+ * IBM Plex Sans Arabic for Arabic script only.
+ *
+ * Declared under its own name with an Arabic-only unicode-range, and placed
+ * first in every font stack. The browser then uses it for Arabic characters
+ * and falls through to the chosen font preset for everything else, whatever
+ * that preset is.
+ */
+
+@font-face {
+  font-family: "DevFeed Arabic";
+  font-style: normal;
+  font-weight: 100 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-400-normal.woff2")
+    format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F;
+}
+
+@font-face {
+  font-family: "DevFeed Arabic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-500-normal.woff2")
+    format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F;
+}
+
+@font-face {
+  font-family: "DevFeed Arabic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-600-normal.woff2")
+    format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F;
+}
+
+@font-face {
+  font-family: "DevFeed Arabic";
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-700-normal.woff2")
+    format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F;
+}

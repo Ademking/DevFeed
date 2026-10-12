@@ -28,7 +28,9 @@ export interface FontPreset {
   features?: string;
 }
 
-const family = (name: string, fallback: string) => `"${name}", ${fallback}`;
+// "DevFeed Arabic" (src/arabic-font.css) only covers Arabic characters, so putting it
+// first gives Arabic text IBM Plex Sans Arabic and leaves everything else to the preset.
+const family = (name: string, fallback: string) => `"DevFeed Arabic", "${name}", ${fallback}`;
 
 export const FONT_PRESETS: FontPreset[] = [
   {

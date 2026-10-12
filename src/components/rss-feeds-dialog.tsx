@@ -1,4 +1,4 @@
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { GripVertical, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SourceAvatar } from "@/components/post-item";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { faviconUrl } from "@/lib/favicon";
 import { hostname } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   BUILTIN_FEEDS,
+  moveFeed,
   fetchFeedXml,
   parseFeed,
   type RssFeed,
@@ -43,6 +45,8 @@ export const RssFeedsDialog = ({ open, onOpenChange, feeds, onChange }: RssFeeds
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragUrl, setDragUrl] = useState<string | null>(null);
+  const [overUrl, setOverUrl] = useState<string | null>(null);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +127,45 @@ export const RssFeedsDialog = ({ open, onOpenChange, feeds, onChange }: RssFeeds
 
           <ul className="flex flex-col divide-y border-y">
             {feeds.map((feed) => (
-              <li className="flex items-center gap-3 py-2.5" key={feed.url}>
+              <li
+                className={cn(
+                  "flex items-center gap-3 py-2.5",
+                  dragUrl === feed.url && "opacity-40",
+                  overUrl === feed.url && dragUrl !== feed.url && "bg-accent"
+                )}
+                // The whole row is the drop target; the grip starts the drag.
+                draggable={dragUrl === feed.url}
+                key={feed.url}
+                onDragEnd={() => {
+                  setDragUrl(null);
+                  setOverUrl(null);
+                }}
+                onDragOver={(e) => {
+                  if (!dragUrl) return;
+                  e.preventDefault();
+                  setOverUrl(feed.url);
+                }}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  // Firefox only starts a drag when some data is set.
+                  e.dataTransfer.setData("text/plain", feed.title);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragUrl) onChange(moveFeed(feeds, dragUrl, feed.url));
+                  setDragUrl(null);
+                  setOverUrl(null);
+                }}
+              >
+                <span
+                  aria-label={`Drag to reorder ${feed.title}`}
+                  className="-me-1 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                  onPointerDown={() => setDragUrl(feed.url)}
+                  onPointerUp={() => setDragUrl(null)}
+                  title="Drag to reorder"
+                >
+                  <GripVertical className="size-4" />
+                </span>
                 <SourceAvatar
                   className="size-5"
                   source={{ name: feed.title || hostname(feed.url), image: faviconUrl(feed.url) }}

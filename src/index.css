@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./arabic-font.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -7,7 +8,7 @@
     --font-sans: var(--app-font-sans);
     --font-heading: var(--app-font-heading);
     --font-reading: var(--app-font-reading);
-    --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+    --font-mono: "DevFeed Arabic", "Geist Mono Variable", ui-monospace, monospace;
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -58,9 +59,9 @@
 /* Default font preset ("Terminal", JetBrains Mono). Other presets live in
    src/lib/fonts.ts and are applied as inline variables on <html>. */
 :root {
-    --app-font-sans: "JetBrains Mono Variable", ui-monospace, monospace;
-    --app-font-heading: "JetBrains Mono Variable", ui-monospace, monospace;
-    --app-font-reading: "JetBrains Mono Variable", ui-monospace, monospace;
+    --app-font-sans: "DevFeed Arabic", "JetBrains Mono Variable", ui-monospace, monospace;
+    --app-font-heading: "DevFeed Arabic", "JetBrains Mono Variable", ui-monospace, monospace;
+    --app-font-reading: "DevFeed Arabic", "JetBrains Mono Variable", ui-monospace, monospace;
     --app-font-features: normal;
 
     /* Text sizes, overridden from Settings */
@@ -302,4 +303,18 @@
   border: 1px solid var(--border);
   padding: 0.4em 0.6em;
   text-align: start;
+}
+
+/* Mixed-language articles: each block picks its own direction from its first
+   strong character, so an Arabic paragraph reads right to left next to an
+   English one. Lists, quotes and padding already use logical (start/end) sides. */
+.rss-content :is(p, li, h3, h4, h5, h6, blockquote, figcaption, td, th) {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+/* Code stays left to right even inside an Arabic article. */
+.rss-content :is(pre, code, kbd) {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
 }

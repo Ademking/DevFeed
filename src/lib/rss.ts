@@ -54,6 +54,17 @@ export const migrateFeeds = (feeds: RssFeed[]) =>
     .filter((f) => !(f.builtIn && REMOVED.has(f.url)))
     .map((f) => (MOVED[f.url] ? { ...f, id: MOVED[f.url], url: MOVED[f.url] } : f));
 
+/** Moves the feed `fromUrl` to where `toUrl` is. The source tabs follow this order. */
+export const moveFeed = (feeds: RssFeed[], fromUrl: string, toUrl: string) => {
+  const from = feeds.findIndex((f) => f.url === fromUrl);
+  const to = feeds.findIndex((f) => f.url === toUrl);
+  if (from < 0 || to < 0 || from === to) return feeds;
+  const next = [...feeds];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+};
+
 const MAX_ITEMS = 30;
 const MAX_CONTENT_CHARS = 60_000;
 const SUMMARY_CHARS = 320;

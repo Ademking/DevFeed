@@ -75,6 +75,7 @@ const CommentItem = ({ comment, depth = 0 }: { comment: Comment; depth?: number 
         </div>
         <p
           className="whitespace-pre-line break-words font-reading text-foreground/90 leading-relaxed"
+          dir="auto"
           style={COMMENT_SIZE}
         >
           {comment.content}
@@ -360,7 +361,11 @@ export const Reader = ({
               <span aria-hidden>·</span>
               <span>{host}</span>
             </div>
-            <h1 className="text-balance font-heading font-semibold leading-[1.08]" style={TITLE_SIZE}>
+            <h1
+              className="text-balance font-heading font-semibold leading-[1.08]"
+              dir="auto"
+              style={TITLE_SIZE}
+            >
               <a
                 className="hover:underline hover:decoration-2 hover:decoration-foreground/40 hover:underline-offset-4"
                 href={post.url}
@@ -377,6 +382,7 @@ export const Reader = ({
           {post.rss?.content ? (
             <section
               className="rss-content font-reading text-foreground/90"
+              dir="auto"
               // Sanitized in lib/sanitize.ts: allowlisted tags, http(s) links only, no attributes beyond href/src/alt.
               dangerouslySetInnerHTML={{ __html: post.rss.content }}
               style={READING_SIZE}
@@ -387,7 +393,7 @@ export const Reader = ({
                 {isRss ? "Summary" : "TL;DR"}
               </h2>
               {post.summary ? (
-                <p className="font-reading text-foreground/90 leading-[1.65]" style={READING_SIZE}>
+                <p className="font-reading text-foreground/90 leading-[1.65]" dir="auto" style={READING_SIZE}>
                   {post.summary}
                 </p>
               ) : (

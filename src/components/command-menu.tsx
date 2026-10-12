@@ -225,7 +225,9 @@ export const CommandMenu = ({
                   type="button"
                 >
                   {item.icon}
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span className="min-w-0 flex-1 truncate text-start" dir="auto">
+                    {item.label}
+                  </span>
                   {item.hint && (
                     <span className="shrink-0 text-muted-foreground text-xs">{item.hint}</span>
                   )}

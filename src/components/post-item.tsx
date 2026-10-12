@@ -99,18 +99,20 @@ export const PostRow = ({
     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
       <SourceLine isRead={isRead} post={post} />
       <button
+        // dir=auto: Arabic and other RTL titles read right to left.
         className={cn(
           selectButtonClass,
           "line-clamp-3 font-heading font-semibold text-(length:--feed-title-size) leading-[1.18]",
           isRead && !selected ? "text-muted-foreground" : "text-foreground"
         )}
+        dir="auto"
         onClick={() => onSelect(post)}
         type="button"
       >
         {post.title}
       </button>
       {showSummary && !!post.summary && (
-        <p className="line-clamp-2 text-muted-foreground text-[13px] leading-relaxed">
+        <p className="line-clamp-2 text-muted-foreground text-[13px] leading-relaxed" dir="auto">
           {post.summary}
         </p>
       )}
@@ -190,18 +192,20 @@ export const PostCard = ({
     <div className="flex flex-1 flex-col gap-2.5 p-4">
       <SourceLine isRead={isRead} post={post} />
       <button
+        // dir=auto: Arabic and other RTL titles read right to left.
         className={cn(
           selectButtonClass,
           "line-clamp-3 font-heading font-semibold text-(length:--feed-title-size) leading-[1.18]",
           isRead ? "text-muted-foreground" : "text-foreground"
         )}
+        dir="auto"
         onClick={() => onSelect(post)}
         type="button"
       >
         {post.title}
       </button>
       {showSummary && !!post.summary && (
-        <p className="line-clamp-3 text-[13px] text-muted-foreground leading-relaxed">
+        <p className="line-clamp-3 text-[13px] text-muted-foreground leading-relaxed" dir="auto">
           {post.summary}
         </p>
       )}

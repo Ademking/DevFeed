@@ -27,7 +27,7 @@ import { PostCard, type PostItemProps, PostRow } from "@/components/post-item";
 import { Reader, ZOOM } from "@/components/reader";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { RssFeedsDialog } from "@/components/rss-feeds-dialog";
-import { ScrollRow } from "@/components/scroll-row";
+import { RssSourceTabs } from "@/components/rss-source-tabs";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { Welcome } from "@/components/welcome";
 import { type BaseFeed, FEEDS, Sidebar } from "@/components/sidebar";
@@ -47,7 +47,7 @@ import { type GrantResult, useRss } from "@/hooks/use-rss";
 import { addBookmark, type FeedKey, type Post, removeBookmark } from "@/lib/api";
 import { applyFontPreset, DEFAULT_FONT } from "@/lib/fonts";
 import { hostname, isWebUrl, timeAgo } from "@/lib/format";
-import { BUILTIN_FEEDS, migrateFeeds, type RssFeed } from "@/lib/rss";
+import { BUILTIN_FEEDS, migrateFeeds, moveFeed, type RssFeed } from "@/lib/rss";
 import { MOD_KEY } from "@/lib/shortcuts";
 import { applyTheme, type Theme, useSettings, useStored } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -555,7 +555,7 @@ export const App = () => {
               ) : (
                 <Search className="size-4 shrink-0 self-center" />
               ))}
-            <h1 className="truncate font-heading font-semibold text-[17px]">
+            <h1 className="truncate font-heading font-semibold text-[17px]" dir="auto">
               {title}
             </h1>
             {!loading && posts.length > 0 && (
@@ -668,23 +668,12 @@ export const App = () => {
 
         {isRss && (
           <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
-            <ScrollRow>
-              {[{ url: null, title: "All" }, ...enabledRss].map((src) => (
-                <button
-                  className={cn(
-                    "shrink-0 px-2.5 py-1 text-xs transition-colors",
-                    activeSource === src.url
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                  )}
-                  key={src.url ?? "all"}
-                  onClick={() => setRssSource(src.url)}
-                  type="button"
-                >
-                  {src.title}
-                </button>
-              ))}
-            </ScrollRow>
+            <RssSourceTabs
+              active={activeSource}
+              feeds={enabledRss}
+              onReorder={(from, to) => setRssFeeds(moveFeed(rssFeeds, from, to))}
+              onSelect={setRssSource}
+            />
             <Button
               className="shrink-0"
               onClick={() => setRssDialogOpen(true)}
