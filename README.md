@@ -13,6 +13,11 @@
   <img src="docs/screenshots/reader.png" alt="DevFeed in dark mode: sidebar with feeds and favourites, a list of posts, and an open post with its cover image, title and TL;DR" width="900" />
 </p>
 
+**Try DevFeed:**
+
+[Chrome Web Store](https://chromewebstore.google.com/detail/devfeed/affcchmbnpheehkaahcmgfppjjaagank)  
+[Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/devfeed/)
+
 ## What it does
 
 Every new tab opens on three columns: your feeds on the left, the post list in the middle and a reading pane on the right. Open a post to read its summary, or its full text when an RSS feed includes it, then press `O` to go to the article. Until you pick a post, the reading pane shows a clock, the weather and your shortcuts.
