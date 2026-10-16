@@ -139,7 +139,12 @@ const gql = async <T>(query: string, variables: Record<string, unknown> = {}): P
 
 // ---------- GraphQL documents ----------
 
-const FEED_FRAGMENT = `
+// daily.dev picks the ranking pipeline with this number (its own default is
+// 15). Leave it out and the API answers from a snapshot frozen years ago, so
+// the feed fills up with 2024 posts.
+const FEED_VERSION = 15;
+
+const POST_INFO_FRAGMENT = `
 fragment FeedPostInfo on Post {
   id
   title
@@ -156,16 +161,27 @@ fragment FeedPostInfo on Post {
   bookmarked
   source { id handle name image permalink }
   author { name image username permalink }
-}
+}`;
+
+const FEED_FRAGMENT = `${POST_INFO_FRAGMENT}
 fragment FeedConnection on PostConnection {
   pageInfo { hasNextPage endCursor }
   edges { node { ...FeedPostInfo } }
 }`;
 
-const FEED_QUERY = `query Feed($first: Int, $after: String) {
-  page: feed(first: $first, after: $after) { ...FeedConnection }
+// "For you" is the personalised feed. For signed-in readers daily.dev serves it
+// through feedV2; the old `feed` field answers from the same stale snapshot as
+// above. Its edges are a union, and only FeedPostItem carries a post.
+const FOR_YOU_QUERY = `query FeedV2($first: Int, $after: String, $version: Int) {
+  page: feedV2(first: $first, after: $after, version: $version) {
+    pageInfo { hasNextPage endCursor }
+    edges { node {
+      __typename
+      ... on FeedPostItem { post { ...FeedPostInfo } }
+    } }
+  }
 }
-${FEED_FRAGMENT}`;
+${POST_INFO_FRAGMENT}`;
 
 const MOST_UPVOTED_QUERY = `query MostUpvotedFeed($first: Int, $after: String, $period: Int) {
   page: mostUpvotedFeed(first: $first, after: $after, period: $period) { ...FeedConnection }
@@ -177,8 +193,10 @@ const MOST_DISCUSSED_QUERY = `query MostDiscussedFeed($first: Int, $after: Strin
 }
 ${FEED_FRAGMENT}`;
 
+// Without a ranking the tag feed also falls back to the stale snapshot; TIME
+// keeps it current.
 const TAG_FEED_QUERY = `query TagFeed($tag: String!, $first: Int, $after: String) {
-  page: tagFeed(tag: $tag, first: $first, after: $after) { ...FeedConnection }
+  page: tagFeed(tag: $tag, first: $first, after: $after, ranking: TIME) { ...FeedConnection }
 }
 ${FEED_FRAGMENT}`;
 
@@ -260,6 +278,16 @@ interface FeedData {
   page: GqlConnection<GqlPost>;
 }
 
+/** feedV2 mixes post items with highlight cards; only post items carry a post. */
+interface FeedV2Node {
+  __typename: string;
+  post?: GqlPost | null;
+}
+
+interface FeedV2Data {
+  page: GqlConnection<FeedV2Node>;
+}
+
 const mapPost = (node: GqlPost): Post => ({
   id: node.id,
   title: node.title,
@@ -285,14 +313,22 @@ const mapPost = (node: GqlPost): Post => ({
     : null,
 });
 
+const mapPageInfo = (
+  info?: { hasNextPage: boolean; endCursor: string | null }
+): Page<Post>["pagination"] =>
+  info ? { hasNextPage: !!info.hasNextPage, cursor: info.endCursor ?? null } : undefined;
+
 const mapFeed = (data: FeedData): Page<Post> => ({
   data: (data.page?.edges ?? []).map((edge) => mapPost(edge.node)),
-  pagination: data.page?.pageInfo
-    ? {
-        hasNextPage: !!data.page.pageInfo.hasNextPage,
-        cursor: data.page.pageInfo.endCursor ?? null,
-      }
-    : undefined,
+  pagination: mapPageInfo(data.page?.pageInfo),
+});
+
+const mapFeedV2 = (data: FeedV2Data): Page<Post> => ({
+  data: (data.page?.edges ?? [])
+    .map((edge) => edge.node.post)
+    .filter((post): post is GqlPost => !!post)
+    .map(mapPost),
+  pagination: mapPageInfo(data.page?.pageInfo),
 });
 
 // ---------- Feeds ----------
@@ -328,7 +364,7 @@ export const fetchFeed = async (
   const vars = { first: limit, after: cursor ?? null };
   switch (key.kind) {
     case "foryou":
-      return mapFeed(await gql<FeedData>(FEED_QUERY, vars));
+      return mapFeedV2(await gql<FeedV2Data>(FOR_YOU_QUERY, { ...vars, version: FEED_VERSION }));
     case "popular":
       return mapFeed(await gql<FeedData>(MOST_UPVOTED_QUERY, vars));
     case "discussed":
