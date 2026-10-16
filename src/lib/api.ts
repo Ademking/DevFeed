@@ -1,10 +1,23 @@
-import { writeStore } from "@/lib/storage";
+import { readStore } from "@/lib/storage";
 
-// In dev the page runs on localhost, which the API does not allow via CORS,
-// so requests go through the Vite proxy. The extension calls the API directly.
-const BASE_URL = import.meta.env.DEV
-  ? "/daily-api"
-  : "https://api.daily.dev/public/v1";
+// daily.dev is talked to through its GraphQL API using the session cookies the
+// browser already holds for daily.dev. Having host permission for
+// api.daily.dev makes those requests same-site, so the cookies (even
+// SameSite=Strict ones) are sent. That means no API key to paste: just be
+// signed in to daily.dev in this browser.
+//
+// In dev the page runs on localhost, where the browser won't attach daily.dev
+// cookies, so requests go through the Vite proxy, which forwards a cookie you
+// paste once (see `devCookie` below).
+const GRAPHQL_URL = import.meta.env.DEV
+  ? "/daily-graphql"
+  : "https://api.daily.dev/graphql";
+
+export const DAILY_URL = "https://daily.dev";
+
+/** Dev-only: a raw Cookie header for localhost, since the page can't use the
+ * browser's daily.dev cookies. Ignored in the built extension. */
+const devCookie = () => (import.meta.env.DEV ? readStore("devCookie", "") : "");
 
 export interface Source {
   id: string;
@@ -29,7 +42,6 @@ export interface Post {
   numUpvotes: number;
   numComments: number;
   author: { name: string; image: string | null } | null;
-  bookmarkedAt?: string;
   /** Set on posts that come from an RSS feed rather than daily.dev. */
   rss?: {
     /** Sanitized article HTML, when the feed includes it. */
@@ -66,47 +78,224 @@ export class ApiError extends Error {
   }
 }
 
-const request = async <T>(
-  token: string,
-  path: string,
-  init: RequestInit = {}
-): Promise<T> => {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
+// daily.dev reports failures as GraphQL errors with a code in `extensions`.
+const CODE_STATUS: Record<string, number> = {
+  UNAUTHENTICATED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  PAYMENT_REQUIRED: 402,
+  RATE_LIMITED: 429,
+  CONFLICT: 409,
+};
+
+interface GqlError {
+  message: string;
+  extensions?: { code?: string };
+}
+
+interface GqlResponse<T> {
+  data?: T | null;
+  errors?: GqlError[];
+}
+
+const gql = async <T>(query: string, variables: Record<string, unknown> = {}): Promise<T> => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const cookie = devCookie();
+  if (cookie) headers["X-Daily-Cookie"] = cookie;
+
+  const res = await fetch(GRAPHQL_URL, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify({ query, variables }),
   });
 
-  const remaining = res.headers.get("x-ratelimit-remaining");
-  if (remaining !== null) {
-    writeStore("ratelimit", {
-      remaining: Number(remaining),
-      limit: Number(res.headers.get("x-ratelimit-limit")),
-      at: Date.now(),
-    });
+  let body: GqlResponse<T>;
+  try {
+    body = (await res.json()) as GqlResponse<T>;
+  } catch {
+    throw new ApiError(res.status || 500, res.statusText || "daily.dev returned an invalid response.");
   }
 
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = body.message || body.error || message;
-    } catch {
-      // body is not JSON
-    }
-    if (res.status === 401) message = "Your token is missing or invalid.";
-    if (res.status === 403)
-      message = "This endpoint needs daily.dev Plus or a token with more scope.";
+  if (body.errors?.length) {
+    const first = body.errors[0];
+    const code = first.extensions?.code ?? "";
+    const status = CODE_STATUS[code] ?? (res.ok ? 400 : res.status);
     const retryAfter = Number(res.headers.get("retry-after")) || undefined;
-    throw new ApiError(res.status, message, retryAfter);
+    if (status === 401) {
+      throw new ApiError(401, "You're not signed in to daily.dev.", retryAfter);
+    }
+    if (code === "RATE_LIMITED") {
+      throw new ApiError(429, "daily.dev is rate limiting DevFeed. Try again later.", retryAfter);
+    }
+    throw new ApiError(status, first.message || "daily.dev returned an error.", retryAfter);
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  if (body.data === null || body.data === undefined) {
+    throw new ApiError(res.status || 500, "daily.dev returned no data.");
+  }
+  return body.data;
 };
+
+// ---------- GraphQL documents ----------
+
+const FEED_FRAGMENT = `
+fragment FeedPostInfo on Post {
+  id
+  title
+  image
+  permalink
+  commentsPermalink
+  createdAt
+  summary
+  type
+  tags
+  readTime
+  numUpvotes
+  numComments
+  bookmarked
+  source { id handle name image permalink }
+  author { name image username permalink }
+}
+fragment FeedConnection on PostConnection {
+  pageInfo { hasNextPage endCursor }
+  edges { node { ...FeedPostInfo } }
+}`;
+
+const FEED_QUERY = `query Feed($first: Int, $after: String) {
+  page: feed(first: $first, after: $after) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const MOST_UPVOTED_QUERY = `query MostUpvotedFeed($first: Int, $after: String, $period: Int) {
+  page: mostUpvotedFeed(first: $first, after: $after, period: $period) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const MOST_DISCUSSED_QUERY = `query MostDiscussedFeed($first: Int, $after: String, $period: Int) {
+  page: mostDiscussedFeed(first: $first, after: $after, period: $period) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const TAG_FEED_QUERY = `query TagFeed($tag: String!, $first: Int, $after: String) {
+  page: tagFeed(tag: $tag, first: $first, after: $after) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const BOOKMARKS_QUERY = `query BookmarksFeed($first: Int, $after: String) {
+  page: bookmarksFeed(first: $first, after: $after) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const SEARCH_QUERY = `query SearchPosts($query: String!, $first: Int, $after: String) {
+  page: searchPosts(query: $query, first: $first, after: $after) { ...FeedConnection }
+}
+${FEED_FRAGMENT}`;
+
+const VIEWER_QUERY = `query Viewer { whoami { id } }`;
+
+const PROFILE_QUERY = `query Viewer {
+  whoami { id name image username permalink reputation isPlus }
+  userStreak { current max total }
+}`;
+
+const ADD_BOOKMARK = `mutation AddBookmark($postId: ID!) {
+  addBookmarks(data: { postIds: [$postId] }) { postId }
+}`;
+
+const REMOVE_BOOKMARK = `mutation RemoveBookmark($id: ID!) {
+  removeBookmark(id: $id) { _ }
+}`;
+
+const COMMENTS_QUERY = `query PostComments($postId: ID!, $first: Int, $after: String) {
+  postComments(postId: $postId, first: $first, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    edges { node { ...CommentNode } }
+  }
+}
+fragment CommentNode on Comment {
+  id
+  contentHtml
+  createdAt
+  permalink
+  numUpvotes
+  author { id name username image permalink }
+  children {
+    edges { node {
+      id
+      contentHtml
+      createdAt
+      permalink
+      numUpvotes
+      author { id name username image permalink }
+    } }
+  }
+}`;
+
+// ---------- Mapping ----------
+
+interface GqlPost {
+  id: string;
+  title: string;
+  image: string | null;
+  permalink: string;
+  commentsPermalink: string;
+  createdAt: string;
+  summary: string | null;
+  type: string | null;
+  tags: string[] | null;
+  readTime: number | null;
+  numUpvotes: number | null;
+  numComments: number | null;
+  source: Source | null;
+  author: { name: string | null; image: string | null } | null;
+}
+
+interface GqlConnection<T> {
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  edges: { node: T }[];
+}
+
+interface FeedData {
+  page: GqlConnection<GqlPost>;
+}
+
+const mapPost = (node: GqlPost): Post => ({
+  id: node.id,
+  title: node.title,
+  url: node.permalink,
+  image: node.image ?? null,
+  summary: node.summary ?? null,
+  type: node.type ?? "article",
+  publishedAt: node.createdAt ?? null,
+  createdAt: node.createdAt,
+  commentsPermalink: node.commentsPermalink,
+  source: {
+    id: node.source?.id ?? "",
+    name: node.source?.name ?? "",
+    handle: node.source?.handle ?? "",
+    image: node.source?.image ?? null,
+  },
+  tags: node.tags ?? [],
+  readTime: node.readTime ?? null,
+  numUpvotes: node.numUpvotes ?? 0,
+  numComments: node.numComments ?? 0,
+  author: node.author
+    ? { name: node.author.name ?? "", image: node.author.image ?? null }
+    : null,
+});
+
+const mapFeed = (data: FeedData): Page<Post> => ({
+  data: (data.page?.edges ?? []).map((edge) => mapPost(edge.node)),
+  pagination: data.page?.pageInfo
+    ? {
+        hasNextPage: !!data.page.pageInfo.hasNextPage,
+        cursor: data.page.pageInfo.endCursor ?? null,
+      }
+    : undefined,
+});
+
+// ---------- Feeds ----------
 
 export type FeedKey =
   | { kind: "foryou" }
@@ -119,53 +308,77 @@ export type FeedKey =
 
 export const feedKeyId = (key: FeedKey) => JSON.stringify(key);
 
-const qs = (params: Record<string, string | number | undefined | null>) => {
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
+/** Cheap check that the browser's daily.dev session is usable. Returns false
+ * only when daily.dev explicitly reports the session as unauthenticated. */
+export const checkConnection = async (): Promise<boolean> => {
+  try {
+    await gql(VIEWER_QUERY);
+    return true;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return false;
+    throw e;
   }
-  const s = sp.toString();
-  return s ? `?${s}` : "";
 };
 
-export const fetchFeed = (
-  token: string,
+export const fetchFeed = async (
   key: FeedKey,
   cursor?: string | null,
   limit = 30
 ): Promise<Page<Post>> => {
-  const base = { limit, cursor };
+  const vars = { first: limit, after: cursor ?? null };
   switch (key.kind) {
     case "foryou":
-      return request(token, `/feeds/foryou${qs(base)}`);
+      return mapFeed(await gql<FeedData>(FEED_QUERY, vars));
     case "popular":
-      return request(token, `/feeds/popular${qs(base)}`);
+      return mapFeed(await gql<FeedData>(MOST_UPVOTED_QUERY, vars));
     case "discussed":
-      return request(token, `/feeds/discussed${qs({ ...base, period: key.period })}`);
+      return mapFeed(await gql<FeedData>(MOST_DISCUSSED_QUERY, { ...vars, period: key.period }));
     case "bookmarks":
-      return request(token, `/bookmarks/${qs(base)}`);
+      return mapFeed(await gql<FeedData>(BOOKMARKS_QUERY, vars));
     case "tag":
-      return request(token, `/feeds/tag/${encodeURIComponent(key.tag)}${qs(base)}`);
+      return mapFeed(await gql<FeedData>(TAG_FEED_QUERY, { ...vars, tag: key.tag }));
     case "search":
-      return request(token, `/search/posts${qs({ ...base, q: key.q })}`);
+      return mapFeed(await gql<FeedData>(SEARCH_QUERY, { ...vars, query: key.q }));
     case "rss":
       throw new Error("RSS feeds are not loaded from daily.dev");
   }
 };
 
-export const fetchProfile = (token: string) =>
-  request<Profile>(token, "/profile/");
+export const fetchProfile = async (): Promise<Profile> => {
+  const data = await gql<{
+    whoami: {
+      id: string;
+      name: string | null;
+      image: string | null;
+      username: string | null;
+      permalink: string;
+      reputation: number | null;
+      isPlus: boolean | null;
+    };
+    userStreak: { current: number; max: number; total: number } | null;
+  }>(PROFILE_QUERY);
+  const u = data.whoami;
+  return {
+    id: u.id,
+    name: u.name ?? null,
+    username: u.username ?? null,
+    image: u.image ?? null,
+    permalink: u.permalink,
+    reputation: u.reputation ?? 0,
+    isPlus: u.isPlus ?? null,
+    streak: data.userStreak
+      ? {
+          current: data.userStreak.current,
+          max: data.userStreak.max,
+          total: data.userStreak.total,
+        }
+      : null,
+  };
+};
 
-export const addBookmark = (token: string, postId: string) =>
-  request(token, "/bookmarks/", {
-    method: "POST",
-    body: JSON.stringify({ postIds: [postId] }),
-  });
+export const addBookmark = (postId: string) => gql(ADD_BOOKMARK, { postId });
 
-export const removeBookmark = (token: string, postId: string) =>
-  request(token, `/bookmarks/${encodeURIComponent(postId)}`, {
-    method: "DELETE",
-  });
+export const removeBookmark = (postId: string) => gql(REMOVE_BOOKMARK, { id: postId });
 
 export interface Comment {
   id: string;
@@ -183,8 +396,63 @@ export interface Comment {
   children?: Comment[];
 }
 
-export const fetchComments = (token: string, postId: string, cursor?: string | null) =>
-  request<Page<Comment>>(
-    token,
-    `/posts/${encodeURIComponent(postId)}/comments${qs({ limit: 30, cursor, sort: "oldest" })}`
-  );
+interface GqlComment {
+  id: string;
+  contentHtml: string;
+  createdAt: string;
+  permalink: string;
+  numUpvotes: number;
+  author: {
+    id: string;
+    name: string | null;
+    username: string | null;
+    image: string | null;
+    permalink: string;
+  } | null;
+  children?: { edges: { node: GqlComment }[] };
+}
+
+/** Comments arrive as HTML; the reader shows them as plain text. */
+const commentText = (html: string) => {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  for (const br of doc.querySelectorAll("br")) br.replaceWith("\n");
+  for (const el of doc.querySelectorAll("p, li, div, blockquote, h1, h2, h3, h4, h5, h6"))
+    el.append("\n");
+  return (doc.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+const mapComment = (node: GqlComment): Comment => ({
+  id: node.id,
+  content: commentText(node.contentHtml ?? ""),
+  createdAt: node.createdAt,
+  permalink: node.permalink,
+  numUpvotes: node.numUpvotes ?? 0,
+  author: {
+    id: node.author?.id ?? "",
+    name: node.author?.name ?? "[deleted]",
+    username: node.author?.username ?? null,
+    image: node.author?.image ?? null,
+    permalink: node.author?.permalink ?? "",
+  },
+  children: node.children?.edges.map((edge) => mapComment(edge.node)),
+});
+
+export const fetchComments = async (
+  postId: string,
+  cursor?: string | null
+): Promise<Page<Comment>> => {
+  const data = await gql<{ postComments: GqlConnection<GqlComment> }>(COMMENTS_QUERY, {
+    postId,
+    first: 30,
+    after: cursor ?? null,
+  });
+  return {
+    data: (data.postComments?.edges ?? []).map((edge) => mapComment(edge.node)),
+    pagination: data.postComments?.pageInfo
+      ? {
+          hasNextPage: !!data.postComments.pageInfo.hasNextPage,
+          cursor: data.postComments.pageInfo.endCursor ?? null,
+        }
+      : undefined,
+  };
+};

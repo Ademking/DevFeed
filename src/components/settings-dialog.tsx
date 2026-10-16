@@ -1,6 +1,6 @@
-import { Eye, EyeOff, ExternalLink, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import { createListCollection } from "@ark-ui/react/select";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,9 +22,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WeatherSettings } from "@/components/weather-settings";
 import { BackgroundSettings } from "@/components/background-settings";
 import { FONT_PRESETS, getFontPreset } from "@/lib/fonts";
-import { defaultSettings, readStore, type Settings, type Theme } from "@/lib/storage";
-
-export const TOKEN_URL = "https://daily.dev/settings/api/";
+import { DAILY_URL } from "@/lib/api";
+import { defaultSettings, type Settings, type Theme } from "@/lib/storage";
 
 const REFRESH_OPTIONS = [
   { value: 30, label: "30m" },
@@ -107,6 +105,8 @@ interface SettingsDialogProps {
   font: string;
   onFontChange: (font: string) => void;
   onClearCache: () => void;
+  connected: boolean;
+  onRecheck: () => void | Promise<void>;
   /** Section to scroll to when the dialog opens. */
   focusSection?: "weather" | null;
 }
@@ -121,20 +121,17 @@ export const SettingsDialog = ({
   font,
   onFontChange,
   onClearCache,
+  connected,
+  onRecheck,
   focusSection,
 }: SettingsDialogProps) => {
-  const [token, setToken] = useState(settings.token);
-  const [reveal, setReveal] = useState(false);
-  const rate = open
-    ? readStore<{ remaining: number; limit: number; at: number } | null>(
-        "ratelimit",
-        null
-      )
-    : null;
+  const [checking, setChecking] = useState(false);
 
-  useEffect(() => {
-    if (open) setToken(settings.token);
-  }, [open, settings.token]);
+  const recheck = async () => {
+    setChecking(true);
+    await onRecheck();
+    setChecking(false);
+  };
 
   return (
     <Dialog onOpenChange={(d) => onOpenChange(d.open)} open={open}>
@@ -145,47 +142,39 @@ export const SettingsDialog = ({
         />
         <DialogBody className="flex flex-col gap-5">
           <section className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="bdd-token">
-              daily.dev API token
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  autoComplete="off"
-                  className="pe-9 font-mono"
-                  id="bdd-token"
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Paste your personal access token"
-                  spellCheck={false}
-                  type={reveal ? "text" : "password"}
-                  value={token}
-                />
-                <Button
-                  aria-label={reveal ? "Hide token" : "Show token"}
-                  className="absolute inset-e-1 top-1"
-                  onClick={() => setReveal((r) => !r)}
-                  size="icon-xs"
-                  variant="ghost"
-                >
-                  {reveal ? <EyeOff /> : <Eye />}
-                </Button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-medium text-sm">daily.dev account</div>
+                <div className="text-muted-foreground text-xs">
+                  {connected
+                    ? "Connected with this browser's daily.dev login."
+                    : "Not connected. Sign in to daily.dev, then recheck."}
+                </div>
               </div>
-              <Button
-                disabled={token.trim() === settings.token}
-                onClick={() => onChange({ token: token.trim() })}
+              <span
+                className={
+                  connected
+                    ? "shrink-0 text-success text-xs"
+                    : "shrink-0 text-muted-foreground text-xs"
+                }
               >
-                Save
-              </Button>
+                {connected ? "Connected" : "Signed out"}
+              </span>
             </div>
-            <a
-              className="inline-flex w-fit items-center gap-1 text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-              href={TOKEN_URL}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Generate a token in daily.dev settings
-              <ExternalLink className="size-3" />
-            </a>
+            <div className="flex items-center gap-2">
+              <Button isLoading={checking} onClick={recheck} size="sm" variant="outline">
+                Recheck
+              </Button>
+              <a
+                className="inline-flex w-fit items-center gap-1 text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
+                href={DAILY_URL}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Open daily.dev
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
           </section>
 
           <section className="divide-y">
@@ -321,10 +310,10 @@ export const SettingsDialog = ({
           </section>
         </DialogBody>
         <DialogFooter className="items-center sm:justify-between">
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {rate
-              ? `API quota: ${rate.remaining} of ${rate.limit} left`
-              : "No API calls yet"}
+          <span className="text-muted-foreground text-xs">
+            {connected
+              ? "Signed in to daily.dev."
+              : "Sign in to daily.dev to load feeds."}
           </span>
           <Button onClick={onClearCache} size="sm" variant="ghost">
             <Trash2 />

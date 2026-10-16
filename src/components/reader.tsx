@@ -105,14 +105,12 @@ const CommentItem = ({ comment, depth = 0 }: { comment: Comment; depth?: number 
 
 const Comments = ({
   post,
-  token,
   loadSignal,
 }: {
   post: Post;
-  token: string;
   loadSignal: number;
 }) => {
-  const { thread, loading, error, load } = useComments(token, post.id);
+  const { thread, loading, error, load } = useComments(post.id);
   const firstSignal = useRef(loadSignal);
 
   // "c" in the parent asks for comments without owning this hook.
@@ -182,7 +180,6 @@ const Comments = ({
 
 export interface ReaderProps {
   post: Post;
-  token: string;
   position: { index: number; total: number };
   isBookmarked: boolean;
   target: "_blank" | "_self";
@@ -207,7 +204,6 @@ const COMMENT_SIZE = { fontSize: "calc(var(--reading-size) * 0.85 * var(--reader
 
 export const Reader = ({
   post,
-  token,
   position,
   isBookmarked,
   target,
@@ -455,7 +451,6 @@ export const Reader = ({
             key={post.id}
             loadSignal={commentsSignal}
             post={post}
-            token={token}
           />
           )}
         </article>

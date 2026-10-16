@@ -32,8 +32,9 @@ const firefoxManifest = (manifest) => ({
       id: "devfeed@ademking.github.io",
       // data_collection_permissions needs Firefox 140+.
       strict_min_version: "140.0",
-      // The daily.dev token is sent to daily.dev; the weather location is sent
-      // to Open-Meteo (and, as a fallback, the IP address to GeoJS).
+      // Requests go to daily.dev with the browser's daily.dev session cookies;
+      // the weather location is sent to Open-Meteo (and, as a fallback, the IP
+      // address to GeoJS).
       data_collection_permissions: {
         required: ["authenticationInfo", "locationInfo"],
       },

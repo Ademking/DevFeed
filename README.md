@@ -24,8 +24,8 @@ Every new tab opens on three columns: your feeds on the left, the post list in t
 
 News comes from two places:
 
-- **daily.dev:** For you, Popular, Most discussed and Bookmarks, through the [daily.dev Public API](https://docs.daily.dev/public-api/). These need a personal access token.
-- **RSS and Atom:** Hacker News, web.dev, GitHub Blog, Cloudflare Blog and DEV are on by default, 14 more are one switch away, and you can add any feed by URL. These need no token.
+- **daily.dev:** For you, Popular, Most discussed and Bookmarks, through daily.dev's GraphQL API. These use the daily.dev login your browser already has, so there is no token to copy.
+- **RSS and Atom:** Hacker News, web.dev, GitHub Blog, Cloudflare Blog and DEV are on by default, 14 more are one switch away, and you can add any feed by URL. These need no daily.dev account.
 
 ## Screenshots
 
@@ -35,7 +35,7 @@ News comes from two places:
 | **Light mode**                                                                                                                                           | **Command menu** (`Ctrl+K`)                                                                                                                     |
 | <img src="docs/screenshots/light.png" alt="Light mode with a post open in the reading pane" />                                                           | <img src="docs/screenshots/command-menu.png" alt="Command menu searching for 'rust': web search, daily.dev search, a tag and matching posts" /> |
 | **Settings**                                                                                                                                             |                                                                                                                                                 |
-| <img src="docs/screenshots/settings.png" alt="Settings dialog: API token, theme, background image, font, auto refresh and text size sliders" />          |                                                                                                                                                 |
+| <img src="docs/screenshots/settings.png" alt="Settings dialog: daily.dev connection, theme, background image, font, auto refresh and text size sliders" />          |                                                                                                                                                 |
 
 ## Features
 
@@ -100,17 +100,17 @@ Then load the unzipped folder for your browser:
 - **Chrome, Edge or Brave:** open `chrome://extensions` (`brave://extensions` in Brave), turn on **Developer mode**, click **Load unpacked** and pick the folder.
 - **Firefox 140 or later:** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick `manifest.json` in the Firefox folder (or the Firefox zip itself). A temporary add-on is removed when Firefox restarts; installing it permanently needs a build signed by Mozilla. Site icons fall back to letters in Firefox, which has no favicon API for extensions.
 
-Open a new tab. RSS feeds, favourites and the welcome screen work straight away. To load the daily.dev feeds, generate a token at [daily.dev → Settings → API](https://daily.dev/settings/api/) and paste it into the card in the For you feed.
+Open a new tab. RSS feeds, favourites and the welcome screen work straight away. To load the daily.dev feeds, [sign in to daily.dev](https://daily.dev) in the same browser, then press _Check again_ on the card in the For you feed. DevFeed reads the session the browser already has, so there is nothing to copy.
 
 **After rebuilding,** click **Reload** on the extension. The browser picks up new JavaScript by itself, but only applies `manifest.json` changes, such as new permissions, on reload. RSS feeds failing with CORS errors usually mean the extension needs a reload.
 
 ## Privacy and permissions
 
-Settings, your token, favourites and read history stay in the extension's own storage in this browser. Nothing is sent to a DevFeed server; there isn't one.
+Settings, favourites and read history stay in the extension's own storage in this browser. There is no DevFeed account and no token: daily.dev feeds reuse the daily.dev session cookies your browser already holds, and they are sent only to daily.dev. Nothing is sent to a DevFeed server; there isn't one.
 
 | Permission                                 | Why                                                                                       |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `https://api.daily.dev/*`                  | Load daily.dev feeds, comments, bookmarks and your profile. Your token is sent only here. |
+| `https://api.daily.dev/*`                  | Load daily.dev feeds, comments, bookmarks and your profile, using your browser's daily.dev session cookies. |
 | The 19 built-in feed sites                 | Read their RSS feeds. Feed sites don't allow cross-site requests otherwise.               |
 | Optional: any `https://` or `http://` site | Asked for one site at a time, only when you add a custom feed.                            |
 | `favicon`                                  | Show site icons from the browser's own cache instead of a third-party icon service.       |
@@ -123,16 +123,16 @@ Other services DevFeed talks to:
 - **GeoJS**, with **ipwho.is** as a backup, only if you click "Use my location" and the browser can't give a position (Brave turns that off by default). They see your IP address and return an approximate city.
 - **Image hosts** for post thumbnails, and the link you paste if you use a background image link.
 
-## daily.dev API quota
+## How daily.dev access works
 
-The daily.dev docs say free accounts get **200 API requests a month**; Plus has much higher limits. DevFeed is built around that:
+DevFeed has no login and no API key. It calls daily.dev's GraphQL API with the session cookies your browser already has for daily.dev, so whatever your account can read there works here too. Requests go only to `api.daily.dev`.
 
 - A feed is refetched only when its saved copy is older than **Auto refresh** (3 hours by default, or Manual).
-- Posts load 40 at a time, and each extra page costs one request.
+- Posts load 40 at a time, and each extra page is one request.
 - Your profile is fetched at most twice a day, and comments only when you ask.
-- RSS feeds use no daily.dev requests.
+- RSS feeds never touch daily.dev.
 
-Settings shows the remaining quota from the last API response.
+If you're signed out of daily.dev, the daily.dev feeds ask you to sign in; RSS feeds, favourites and the welcome screen keep working.
 
 ## Development
 
@@ -144,9 +144,9 @@ npm run icons        # Regenerate the PNG icons in public/icons
 npm run screenshots  # Recapture docs/screenshots (needs npm run dev running)
 ```
 
-The dev page runs on `localhost`, which neither the daily.dev API nor most feeds allow cross-site, so the dev server proxies `/daily-api/*` to the API and `/rss-proxy?url=` to feeds. The built extension calls them directly through its host permissions.
+The dev page runs on `localhost`, where the browser won't send daily.dev's cookies, so the dev server proxies `/daily-graphql` to the daily.dev GraphQL API (forwarding the cookie pasted into the dev-only field of the Connect card as a `Cookie` header) and `/rss-proxy?url=` to feeds. The built extension calls them directly through its host permissions.
 
-The Firefox build is the same code with a different manifest: it drops the Chrome-only `favicon` permission and adds `browser_specific_settings.gecko` with the add-on ID, a minimum version of Firefox 140 and the `data_collection_permissions` that addons.mozilla.org requires (the daily.dev token and the weather location). See `scripts/package.mjs`.
+The Firefox build is the same code with a different manifest: it drops the Chrome-only `favicon` permission and adds `browser_specific_settings.gecko` with the add-on ID, a minimum version of Firefox 140 and the `data_collection_permissions` that addons.mozilla.org requires (daily.dev authentication and the weather location). See `scripts/package.mjs`.
 
 `npm run screenshots` drives an installed Chrome in headless mode with a temporary profile. Set `CHROME_PATH` if Chrome isn't in the default location.
 

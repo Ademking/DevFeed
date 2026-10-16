@@ -13,7 +13,7 @@ interface Thread {
 type ThreadCache = Record<string, Thread & { at: number }>;
 
 /** Comments load only on request, since each load costs one API call. */
-export const useComments = (token: string, postId: string | null) => {
+export const useComments = (postId: string | null) => {
   const [thread, setThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -29,7 +29,7 @@ export const useComments = (token: string, postId: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const page = await fetchComments(token, postId, thread?.cursor);
+      const page = await fetchComments(postId, thread?.cursor);
       const next: Thread = {
         comments: [...(thread?.comments ?? []), ...(page.data ?? [])],
         cursor: page.pagination?.cursor ?? null,
@@ -49,7 +49,7 @@ export const useComments = (token: string, postId: string | null) => {
     } finally {
       setLoading(false);
     }
-  }, [token, postId, thread, loading]);
+  }, [postId, thread, loading]);
 
   return { thread, loading, error, load };
 };

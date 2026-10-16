@@ -40,6 +40,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
 import { useFeed } from "@/hooks/use-feed";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useProfile } from "@/hooks/use-profile";
@@ -132,10 +133,12 @@ export const App = () => {
   }, [filter, base, period]);
 
   const isRss = feedKey.kind === "rss";
-  const daily = useFeed(settings.token, feedKey, settings.refreshMinutes);
+  const { status: connection, recheck } = useAuth();
+  const connected = connection === "connected";
+  const daily = useFeed(connected, feedKey, settings.refreshMinutes);
   const rss = useRss(isRss, rssFeeds);
   const feed = isRss ? rss : daily;
-  const profile = useProfile(settings.token);
+  const profile = useProfile(connected);
   const enabledRss = useMemo(() => rssFeeds.filter((f) => f.enabled), [rssFeeds]);
   const activeSource = isRss && enabledRss.some((f) => f.url === rssSource) ? rssSource : null;
   const allPosts = useMemo(
@@ -279,16 +282,16 @@ export const App = () => {
       apply(!was);
       try {
         if (was) {
-          await removeBookmark(settings.token, post.id);
+          await removeBookmark(post.id);
           if (feedKey.kind === "bookmarks") feed.removePost(post.id);
         } else {
-          await addBookmark(settings.token, post.id);
+          await addBookmark(post.id);
         }
       } catch {
         apply(was);
       }
     },
-    [bookmarkSet, setBookmarkIds, settings.token, feedKey.kind, feed]
+    [bookmarkSet, setBookmarkIds, feedKey.kind, feed]
   );
 
   const openArticle = useCallback(
@@ -519,7 +522,6 @@ export const App = () => {
       post={shown}
       target={target}
       zoom={zoom}
-      token={settings.token}
     />
   );
 
@@ -722,11 +724,13 @@ export const App = () => {
 
         <div className="min-h-0 flex-1 overflow-y-auto" ref={listRef}>
           <div className={cn(isCards ? "p-4" : "p-2")}>
-            {!isRss && !settings.token ? (
+            {!isRss && connection === "disconnected" ? (
               <ConnectPrompt
                 onOpenRss={() => showFeed("rss")}
-                onSave={(token) => updateSettings({ token })}
+                onRecheck={() => recheck(true)}
               />
+            ) : !isRss && connection === "checking" && !posts.length ? (
+              <FeedSkeleton layout={settings.layout} />
             ) : feed.status === "error" && feed.error && !posts.length ? (
               <ErrorState
                 error={feed.error}
@@ -830,10 +834,12 @@ export const App = () => {
       </div>
 
       <SettingsDialog
+        connected={connected}
         focusSection={settingsSection}
         font={font}
         onFontChange={setFont}
         onChange={updateSettings}
+        onRecheck={() => recheck(true)}
         onClearCache={() => {
           for (const k of Object.keys(localStorage)) {
             if (k.startsWith("bdd:feed:") || k === "bdd:profile" || k === "bdd:comments")

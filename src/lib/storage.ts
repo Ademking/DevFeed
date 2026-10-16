@@ -54,7 +54,6 @@ export type Theme = "dark" | "light";
 export type Layout = "reader" | "cards";
 
 export interface Settings {
-  token: string;
   layout: Layout;
   showSummaries: boolean;
   showImages: boolean;
@@ -80,7 +79,6 @@ export interface Settings {
 }
 
 export const defaultSettings: Settings = {
-  token: "",
   layout: "reader",
   showSummaries: true,
   showImages: true,

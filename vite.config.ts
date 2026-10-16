@@ -40,10 +40,19 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/daily-api': {
-        target: 'https://api.daily.dev/public/v1',
+      // The dev page is on localhost, where the browser won't send daily.dev's
+      // cookies. Forwards the cookie pasted into the Connect prompt (the
+      // X-Daily-Cookie header) as the real Cookie header.
+      '/daily-graphql': {
+        target: 'https://api.daily.dev/graphql',
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/daily-api/, ''),
+        rewrite: (p) => p.replace(/^\/daily-graphql/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const cookie = req.headers['x-daily-cookie']
+            if (typeof cookie === 'string' && cookie) proxyReq.setHeader('cookie', cookie)
+          })
+        },
       },
     },
   },

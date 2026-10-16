@@ -10,7 +10,7 @@ import {
 } from "@/lib/rss";
 import type { FeedStatus } from "@/hooks/use-feed";
 
-// RSS costs no API quota, so feeds refresh more often than daily.dev ones.
+// RSS never touches daily.dev, so feeds refresh more often than daily.dev ones.
 const STALE_MS = 30 * 60_000;
 
 interface CachedRss {

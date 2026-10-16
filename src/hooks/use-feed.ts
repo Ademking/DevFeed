@@ -20,7 +20,7 @@ const cacheKey = (key: FeedKey) => `feed:${feedKeyId(key)}`;
 const isCacheable = (key: FeedKey) => key.kind !== "search" && key.kind !== "rss";
 
 export const useFeed = (
-  token: string,
+  enabled: boolean,
   key: FeedKey,
   refreshMinutes: number
 ) => {
@@ -50,7 +50,7 @@ export const useFeed = (
   const load = useCallback(
     async (mode: "replace" | "more", current: CachedFeed | null) => {
       // RSS has its own loader (useRss); this hook sits idle for it.
-      if (!token || key.kind === "rss") return;
+      if (!enabled || key.kind === "rss") return;
       const rid = ++requestId.current;
       setStatus(
         mode === "more" ? "loading-more" : current ? "refreshing" : "loading"
@@ -58,7 +58,6 @@ export const useFeed = (
       setError(null);
       try {
         const page = await fetchFeed(
-          token,
           key,
           mode === "more" ? current?.cursor : null,
           PAGE_SIZE
@@ -84,7 +83,7 @@ export const useFeed = (
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [token, id, persist]
+    [enabled, id, persist]
   );
 
   // On feed switch: show cache instantly, refetch only when stale.
@@ -100,9 +99,9 @@ export const useFeed = (
       !cached ||
       (refreshMinutes > 0 &&
         Date.now() - cached.fetchedAt > refreshMinutes * 60_000);
-    if (token && stale) load("replace", cached);
+    if (enabled && stale) load("replace", cached);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, token]);
+  }, [id, enabled]);
 
   const refresh = useCallback(() => load("replace", feed), [load, feed]);
   const loadMore = useCallback(() => {

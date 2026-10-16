@@ -1,11 +1,10 @@
 import { AlertTriangle, ExternalLink, Inbox, KeyRound, Rss } from "lucide-react";
 import { useState } from "react";
-import { TOKEN_URL } from "@/components/settings-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError } from "@/lib/api";
-import type { Layout } from "@/lib/storage";
+import { ApiError, DAILY_URL } from "@/lib/api";
+import { type Layout, readStore, writeStore } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 export const FeedSkeleton = ({ layout }: { layout: Layout }) =>
@@ -60,9 +59,9 @@ export const ErrorState = ({
   const status = error instanceof ApiError ? error.status : 0;
   const title =
     status === 429
-      ? "Out of API requests"
+      ? "daily.dev is rate limiting DevFeed"
       : status === 401
-        ? "daily.dev rejected your token"
+        ? "daily.dev isn't connected"
         : status
           ? `daily.dev returned an error (${status})`
           : "Couldn't reach daily.dev";
@@ -81,7 +80,7 @@ export const ErrorState = ({
       <div className="flex gap-2">
         {status === 401 && (
           <Button onClick={onOpenSettings} variant="outline">
-            Update token
+            Connection settings
           </Button>
         )}
         <Button onClick={onRetry}>Retry</Button>
@@ -91,17 +90,27 @@ export const ErrorState = ({
 };
 
 /**
- * Shown in place of the daily.dev feeds until a token is saved. The rest of
- * the app (RSS, favourites, welcome screen) works without one.
+ * Shown in place of the daily.dev feeds until the browser has a daily.dev
+ * session. DevFeed reads the cookies daily.dev already set, so there's nothing
+ * to copy: just be signed in. The rest of the app (RSS, favourites, welcome
+ * screen) works without it.
  */
 export const ConnectPrompt = ({
-  onSave,
+  onRecheck,
   onOpenRss,
 }: {
-  onSave: (token: string) => void;
+  onRecheck: () => void | Promise<void>;
   onOpenRss: () => void;
 }) => {
-  const [token, setToken] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [cookie, setCookie] = useState(() => readStore("devCookie", ""));
+
+  const check = async () => {
+    setChecking(true);
+    await onRecheck();
+    setChecking(false);
+  };
+
   return (
     <div className="flex justify-center px-2 py-10">
       <div className="flex w-full max-w-md flex-col gap-5 border bg-card p-6">
@@ -111,7 +120,8 @@ export const ConnectPrompt = ({
             <h2 className="font-heading font-semibold text-base">Connect daily.dev</h2>
           </div>
           <p className="text-muted-foreground text-sm">
-            For you, Popular, Most discussed and Bookmarks load from your daily.dev account.
+            For you, Popular, Most discussed and Bookmarks load from your daily.dev
+            account, using the daily.dev login this browser already has.
           </p>
         </div>
         <ol className="flex flex-col gap-2 text-sm">
@@ -120,48 +130,58 @@ export const ConnectPrompt = ({
               1
             </span>
             <span>
-              Go to{" "}
+              Make sure you're signed in to{" "}
               <a
                 className="inline-flex items-center gap-0.5 font-medium underline underline-offset-4"
-                href={TOKEN_URL}
+                href={DAILY_URL}
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                daily.dev Settings, API
+                daily.dev
                 <ExternalLink className="size-3" />
               </a>{" "}
-              and generate a token.
+              in this browser.
             </span>
           </li>
           <li className="flex gap-2">
             <span className="flex size-5 shrink-0 items-center justify-center bg-muted font-medium text-xs">
               2
             </span>
-            <span>Paste it here. It stays in this browser and is sent only to api.daily.dev.</span>
+            <span>Come back and check again. No token to copy.</span>
           </li>
         </ol>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (token.trim()) onSave(token.trim());
-          }}
-        >
-          <Input
-            autoComplete="off"
-            className="flex-1 font-mono"
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="Personal access token"
-            spellCheck={false}
-            type="password"
-            value={token}
-          />
-          <Button disabled={!token.trim()} type="submit">
-            Connect
-          </Button>
-        </form>
+        <Button isLoading={checking} onClick={check}>
+          Check again
+        </Button>
+        {import.meta.env.DEV && (
+          <div className="flex flex-col gap-2 border-t pt-4">
+            <label className="font-medium text-xs" htmlFor="bdd-dev-cookie">
+              Dev only: daily.dev cookie header
+            </label>
+            <div className="flex gap-2">
+              <Input
+                autoComplete="off"
+                className="flex-1 font-mono text-xs"
+                id="bdd-dev-cookie"
+                onChange={(e) => setCookie(e.target.value)}
+                placeholder="paste the Cookie header from daily.dev"
+                spellCheck={false}
+                value={cookie}
+              />
+              <Button
+                onClick={() => {
+                  writeStore("devCookie", cookie.trim());
+                  check();
+                }}
+                variant="outline"
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3 border-t pt-4 text-muted-foreground text-xs">
-          <span>RSS feeds work without a token.</span>
+          <span>RSS feeds work without daily.dev.</span>
           <Button onClick={onOpenRss} size="xs" variant="outline">
             <Rss />
             Read RSS feeds
