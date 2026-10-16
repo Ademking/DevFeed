@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "DevFeed",
   "short_name": "DevFeed",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A minimal new tab for developer news: daily.dev, RSS feeds, a reader, favourites and weather.",
   "chrome_url_overrides": {
     "newtab": "index.html"
